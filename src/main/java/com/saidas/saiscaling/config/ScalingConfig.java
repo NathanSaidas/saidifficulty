@@ -27,26 +27,29 @@ public class ScalingConfig {
     }
 
     /** Load the scaling config from file. (NOTE: If the file doesn't exist then defaults are written).**/
-    public static void load() {
+    public static boolean load() {
         if(!exists()) {
             SaiLogger.info("No config present, creating deafult config. " + FILE_NAME);
             setDefault();
             save();
-            return;
+            return true;
         }
 
+        boolean success = false;
         try {
             config = SaiConfigUtil.readFile(FILE_NAME, ScalingConfig.class);
             if(config == null) {
                 setDefault();
             }
             SaiLogger.info("Loaded config " + FILE_NAME);
+            success = true;
         }
         catch(Exception e) {
             SaiLogger.warn("Failed to load config. Falling back to defaults. (Check syntax!)");
             SaiLogger.exception(e);
             setDefault();
         }
+        return success;
     }
 
     /** Save the scaling config to file. **/
