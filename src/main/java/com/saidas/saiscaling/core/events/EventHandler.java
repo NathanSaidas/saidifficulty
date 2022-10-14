@@ -15,7 +15,10 @@ import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.EntityLeaveWorldEvent;
+import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -39,5 +42,10 @@ public class EventHandler {
     @SubscribeEvent
     public static void onRegisterCommand(final RegisterCommandsEvent event) {
         CommandsEventHandler.onRegisterCommand(event);
+    }
+
+    @SubscribeEvent
+    public static void onLivingHurt(final LivingHurtEvent event) {
+        MobEventHandler.entityHurt(event);
     }
 }

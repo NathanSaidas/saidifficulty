@@ -19,7 +19,10 @@ public class ScalingConfig {
     public final ArrayList<MobScaleInfo> defaultScaling = new ArrayList<>();
     /** The override scaling values based on the entity type. eg 'minecraft:creeper' => specific scaling **/
     public final HashMap<String, ArrayList<MobScaleInfo>> overrideScaling = new HashMap<>();
-
+    /** The default scaling multiplier for a dimension. Use 'dimensionOverrideScaling' to create settings for each dimension. **/
+    public final ArrayList<MobScaleInfo> defaultDimensionScaling = new ArrayList<>();
+    /** The override scaling multiplier values based on the dimension. Applies to all entities based on distance. **/
+    public final HashMap<String, ArrayList<MobScaleInfo>> overrideDimensionScaling = new HashMap<>();
 
     /** Get the instance of the config (do not hold onto it for it might change when a call to load is made). **/
     public static ScalingConfig get() {
@@ -67,6 +70,8 @@ public class ScalingConfig {
     public static void setDefault() {
         config.defaultScaling.clear();
         config.overrideScaling.clear();
+        config.defaultDimensionScaling.clear();
+        config.overrideDimensionScaling.clear();
 
         // Until 1000 blocks there is no scaling applied.
         config.defaultScaling.add( new MobScaleInfoBuilder()
@@ -138,6 +143,12 @@ public class ScalingConfig {
                 .bonusArmor(12)
                 .bonusArmorToughness(3)
                 .build());
+
+        config.defaultDimensionScaling.add(new MobScaleInfoBuilder()
+                .maxDistance(1000)
+                        .bonusMaxHealth(200)
+                        .bonusDamage(200)
+                        .build());
     }
 
     /** Check if the config file exists. **/

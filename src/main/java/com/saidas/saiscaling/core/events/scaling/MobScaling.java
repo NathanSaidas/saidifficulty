@@ -21,6 +21,7 @@ import net.minecraft.loot.LootTableManager;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import org.spongepowered.asm.mixin.injection.At;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -35,6 +36,10 @@ public class MobScaling {
     private static final UUID scalingBonusArmorUUID = UUID.fromString("8be4c967-4edd-4a31-96ca-8edd3543c939");
     private static final UUID scalingBonusArmorToughnessUUID = UUID.fromString("cfbd3d72-31ab-470e-83e1-ffe31190fdb3");
     private static final UUID scalingBonusDamageUUID = UUID.fromString("a22356d0-f336-48a5-9956-14b053e245f0");
+    private static final UUID dimensionScalingBonusHealthUUID = UUID.fromString("774f8540-9e44-4ab9-8a2e-b09c441ff92d");
+    private static final UUID dimensionScalingBonusArmorUUID = UUID.fromString("20c3da71-cef7-45cb-aaa1-d186ed741052");
+    private static final UUID dimensionScalingBonusArmorToughnessUUID = UUID.fromString("06d95061-41b5-459b-96e8-a105a759c5b8");
+    private static final UUID dimensionScalingBonusDamageUUID = UUID.fromString("310720fa-fbfe-4e8b-b70f-780f23b63307");
 
     // FEATURE IDEA: We can also apply scaling based on dimension. Let's just keep it simple for now.
     // FEATURE IDEA: Since we're increasing the difficulty of a mob by adjusting health/armor/damage. We should
@@ -50,9 +55,14 @@ public class MobScaling {
             return;
         }
 
+        if(entity.level == null) {
+            return;
+        }
+
         ResourceLocation typeName = entity.getType().getRegistryName();
+        ResourceLocation dimensionName = entity.level.dimension().location();
         BlockPos position = entity.blockPosition();
-        if (typeName == null || position == null) {
+        if (typeName == null || position == null || dimensionName == null) {
             return;
         }
 
@@ -64,13 +74,26 @@ public class MobScaling {
             scaling = config.defaultScaling;
         }
 
+        ArrayList<MobScaleInfo> dimensionScaling = config.overrideDimensionScaling.get(dimensionName.toString());
+        if(dimensionScaling == null) {
+            dimensionScaling = config.defaultDimensionScaling;
+        }
+
+
         // find the appropriate scale info
         MobScaleInfo mobScaleInfo = findScaleInfo(scaling, MathHelper.floor(distance2D(position)));
         if (mobScaleInfo == null) {
             return;
         }
+
+        MobScaleInfo dimensionScaleInfo = findScaleInfo(dimensionScaling, MathHelper.floor(distance2D(position)));
+        if(dimensionScaleInfo == null) {
+            return;
+        }
+
+
         try {
-            applyScaleInfo(entity, mobScaleInfo);
+            applyScaleInfo(entity, mobScaleInfo, dimensionScaleInfo);
 
         } catch (Exception e) {
             SaiLogger.exception(e);
@@ -81,7 +104,7 @@ public class MobScaling {
      * @param entity The mob being modified.
      * @param info The scaling information used for modification.
      */
-    private static void applyScaleInfo(MonsterEntity entity, MobScaleInfo info) {
+    private static void applyScaleInfo(MonsterEntity entity, MobScaleInfo info, MobScaleInfo dimensionInfo) {
         ModifiableAttributeInstance maxHealth = entity.getAttribute(Attributes.MAX_HEALTH);
         ModifiableAttributeInstance armor = entity.getAttribute(Attributes.ARMOR);
         ModifiableAttributeInstance armorToughness = entity.getAttribute(Attributes.ARMOR_TOUGHNESS);
@@ -90,30 +113,67 @@ public class MobScaling {
         float healthPercent = entity.getHealth() / entity.getMaxHealth();
         MathHelper.clamp(healthPercent, 0.0f, 1.0f);
 
-        if(maxHealth != null && info.bonusMaxHealth > 0) {
-            maxHealth.removePermanentModifier(scalingBonusHealthUUID);
-            maxHealth.addPermanentModifier(new AttributeModifier(scalingBonusHealthUUID, "Scaling Bonus Health", info.bonusMaxHealth, AttributeModifier.Operation.ADDITION));
+        if(maxHealth != null) {
+            if(info.bonusMaxHealth > 0) {
+                maxHealth.removePermanentModifier(scalingBonusHealthUUID);
+                maxHealth.addPermanentModifier(new AttributeModifier(scalingBonusHealthUUID, "Scaling Bonus Health", info.bonusMaxHealth, AttributeModifier.Operation.ADDITION));
+            }
+            if(dimensionInfo.bonusMaxHealth > 0) {
+                float scaleValue = (float)dimensionInfo.bonusMaxHealth / 100.0f;
+                maxHealth.removePermanentModifier(dimensionScalingBonusHealthUUID);
+                maxHealth.addPermanentModifier(new AttributeModifier(dimensionScalingBonusHealthUUID, "Dimension Scaling Bonus Health", scaleValue, AttributeModifier.Operation.MULTIPLY_BASE));
+            }
         }
 
-        if(armor != null && info.bonusArmor > 0) {
-            armor.removePermanentModifier(scalingBonusArmorUUID);
-            armor.addPermanentModifier(new AttributeModifier(scalingBonusArmorUUID, "Scaling Bonus Armor", info.bonusArmor, AttributeModifier.Operation.ADDITION));
+        if(armor != null) {
+            if(info.bonusArmor > 0) {
+                armor.removePermanentModifier(scalingBonusArmorUUID);
+                armor.addPermanentModifier(new AttributeModifier(scalingBonusArmorUUID, "Scaling Bonus Armor", info.bonusArmor, AttributeModifier.Operation.ADDITION));
+            }
+            if(dimensionInfo.bonusArmor > 0) {
+                float scaleValue = (float)dimensionInfo.bonusArmor / 100.0f;
+                armor.removePermanentModifier(dimensionScalingBonusArmorUUID);
+                armor.addPermanentModifier(new AttributeModifier(dimensionScalingBonusArmorUUID, "Dimension Scaling Bonus Armor", scaleValue, AttributeModifier.Operation.MULTIPLY_BASE));
+            }
         }
 
-        if(armorToughness != null && info.bonusArmorToughness > 0) {
-            armorToughness.removePermanentModifier(scalingBonusArmorToughnessUUID);
-            armorToughness.addPermanentModifier(new AttributeModifier(scalingBonusArmorToughnessUUID, "Scaling Bonus Armor Toughness", info.bonusArmorToughness, AttributeModifier.Operation.ADDITION));
+        if(armorToughness != null) {
+            if(info.bonusArmorToughness > 0) {
+                armorToughness.removePermanentModifier(scalingBonusArmorToughnessUUID);
+                armorToughness.addPermanentModifier(new AttributeModifier(scalingBonusArmorToughnessUUID, "Scaling Bonus Armor Toughness", info.bonusArmorToughness, AttributeModifier.Operation.ADDITION));
+            }
+            if(dimensionInfo.bonusArmorToughness > 0) {
+                float scaleValue = (float)dimensionInfo.bonusArmorToughness / 100.0f;
+                armorToughness.removePermanentModifier(dimensionScalingBonusArmorToughnessUUID);
+                armorToughness.addPermanentModifier(new AttributeModifier(dimensionScalingBonusArmorToughnessUUID, "Dimension Scaling Bonus Armor Toughness", scaleValue, AttributeModifier.Operation.MULTIPLY_BASE));
+            }
         }
 
-        if(attackDamage != null && info.bonusDamage > 0 ) {
-            attackDamage.removePermanentModifier(scalingBonusDamageUUID);
-            attackDamage.addPermanentModifier(new AttributeModifier(scalingBonusDamageUUID, "Scaling Bonus Damage", info.bonusDamage, AttributeModifier.Operation.ADDITION));
+        if(attackDamage != null) {
+            if(info.bonusDamage > 0) {
+                attackDamage.removePermanentModifier(scalingBonusDamageUUID);
+                attackDamage.addPermanentModifier(new AttributeModifier(scalingBonusDamageUUID, "Scaling Bonus Damage", info.bonusDamage, AttributeModifier.Operation.ADDITION));
+            }
+            if(dimensionInfo.bonusDamage > 0) {
+                float scaleValue = (float)dimensionInfo.bonusDamage / 100.0f;
+                attackDamage.removePermanentModifier(dimensionScalingBonusDamageUUID);
+                attackDamage.addPermanentModifier(new AttributeModifier(dimensionScalingBonusDamageUUID, "Dimension Scaling Bonus Damage", scaleValue, AttributeModifier.Operation.MULTIPLY_BASE));
+            }
         }
 
-        if(!info.bonusLoot.isEmpty()) {
+        final boolean hasLoot = !info.bonusLoot.isEmpty() || !dimensionInfo.bonusLoot.isEmpty();
+        if(hasLoot) {
             MonsterWrapper monster = MobTracker.getMonster(entity);
             if(monster != null) {
                 for(String tableName : info.bonusLoot) {
+                    ResourceLocation fullname = new ResourceLocation(SaiDifficultyMod.MOD_ID, tableName);
+                    LootTable lootTable = LootTableConfig.get().find(fullname);
+                    if(lootTable != null) {
+                        monster.addLoot(lootTable);
+                    }
+                }
+
+                for(String tableName : dimensionInfo.bonusLoot) {
                     ResourceLocation fullname = new ResourceLocation(SaiDifficultyMod.MOD_ID, tableName);
                     LootTable lootTable = LootTableConfig.get().find(fullname);
                     if(lootTable != null) {
@@ -125,7 +185,6 @@ public class MobScaling {
 
         // Adjust the health to reflect the new max health.
         entity.setHealth(entity.getMaxHealth() * healthPercent);
-
     }
 
     /** Find the scale info based on distance from spawn.
